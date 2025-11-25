@@ -1,4 +1,6 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
+
+from services import add_operation, multiply_operation
 
 app = Flask(__name__)
 
@@ -12,10 +14,7 @@ def sum_api():
     - 不处理异常
     """
     data = request.get_json()
-    a = data["a"]
-    b = data["b"]
-    result = a + b
-    return {"code": 0, "data": result}
+    return add_operation(data)
 
 
 @app.route("/multiply", methods=["POST"])
@@ -24,10 +23,7 @@ def multiply_api():
     和 /sum 结构几乎一模一样，存在大量重复逻辑，适合作为重构练习。
     """
     data = request.get_json()
-    a = data["a"]
-    b = data["b"]
-    result = a * b
-    return {"code": 0, "data": result}
+    return multiply_operation(data)
 
 
 if __name__ == "__main__":
