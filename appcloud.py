@@ -17,7 +17,7 @@ def _parse_numbers(payload):
     try:
         return float(a), float(b)
     except (TypeError, ValueError):
-        abort(400, description="Fields a and b must be numberst")
+        abort(400, description="fields a and b must be numberst")
 
 
 def _compute(op):
