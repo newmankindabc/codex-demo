@@ -1,35 +1,77 @@
+﻿import os
 from flask import Flask, request, jsonify
+from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024  # cap request size to 1MB
+
+
+class ValidationError(ValueError):
+    """Raised when request payload fails validation."""
+
+
+def make_json_response(code=0, message="", data=None, status=200):
+    """Return a unified JSON response with explicit status."""
+    return jsonify({"code": code, "message": message, "data": data}), status
+
+
+def parse_operands():
+    """Parse and validate operands a and b from JSON body."""
+    if not request.is_json:
+        raise ValidationError("Request must be JSON with application/json content type.")
+
+    payload = request.get_json(silent=True)
+    if payload is None:
+        raise ValidationError("Invalid JSON payload.")
+
+    try:
+        a = payload["a"]
+        b = payload["b"]
+    except KeyError as exc:
+        raise ValidationError(f"Missing required field: {exc.args[0]}")
+
+    for name, value in (("a", a), ("b", b)):
+        if not isinstance(value, (int, float)):
+            raise ValidationError(f"Field '{name}' must be a number.")
+
+    return a, b
+
+
+@app.errorhandler(ValidationError)
+def handle_validation_error(err):
+    return make_json_response(code=400, message=str(err), status=400)
+
+
+@app.errorhandler(HTTPException)
+def handle_http_exception(err):
+    return make_json_response(code=err.code, message=err.description, status=err.code)
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(err):
+    # In production you might log err here.
+    return make_json_response(code=500, message="Internal server error."), 500
+
+
+def compute_operation(operation):
+    a, b = parse_operands()
+    return operation(a, b)
 
 
 @app.route("/sum", methods=["POST"])
 def sum_api():
-    """
-    一个故意写得比较随意的示例接口：
-    - 不校验参数是否存在
-    - 不校验参数类型
-    - 不处理异常
-    """
-    data = request.get_json()
-    a = data["a"]
-    b = data["b"]
-    result = a + b
-    return {"code": 0, "data": result}
+    """Add two numbers."""
+    result = compute_operation(lambda a, b: a + b)
+    return make_json_response(data=result)
 
 
 @app.route("/multiply", methods=["POST"])
 def multiply_api():
-    """
-    和 /sum 结构几乎一模一样，存在大量重复逻辑，适合作为重构练习。
-    """
-    data = request.get_json()
-    a = data["a"]
-    b = data["b"]
-    result = a * b
-    return {"code": 0, "data": result}
+    """Multiply two numbers."""
+    result = compute_operation(lambda a, b: a * b)
+    return make_json_response(data=result)
 
 
 if __name__ == "__main__":
-    # 故意把 debug=True 写死在代码中，作为安全/配置的反例
-    app.run("0.0.0.0", 5000, debug=True)
+    debug = os.getenv("APP_DEBUG", "").lower() in {"1", "true", "yes", "on"}
+    app.run("0.0.0.0", 5000, debug=debug)
